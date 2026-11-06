@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.ears/
+.DS_Store
+test-output/
+.tools/

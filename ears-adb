@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# ears-adb: record an Android device's (or emulator's) audio output to a WAV.
+#
+#   ears-adb <seconds> <out.wav> [extra scrcpy args, e.g. -s <serial>]
+#
+# How: scrcpy 2.0+ captures the device's audio over adb (Android 11 or newer),
+# with no app on the phone and no root. Plain adb cannot do this: `screenrecord`
+# records video only. While scrcpy records, the phone's own speaker may go quiet
+# (the default audio source). With scrcpy 3+ you can pass --audio-source=playback
+# to keep the phone playing (some apps opt out of that capture).
+# Status: written from scrcpy's documented flags; not yet tried on a device.
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "usage: ears-adb <seconds> <out.wav> [extra scrcpy args]" >&2
+  exit 2
+fi
+secs=$1
+out=$2
+shift 2
+
+need() { command -v "$1" >/dev/null 2>&1 || { echo "ears-adb: $1 not found. $2" >&2; exit 3; }; }
+need adb "Install Android platform-tools (macOS: brew install android-platform-tools)."
+need scrcpy "Install scrcpy 2.0 or newer (macOS: brew install scrcpy; Linux: see github.com/Genymobile/scrcpy)."
+
+devices=$(adb devices | awk 'NR>1 && $2=="device"' | wc -l | tr -d ' ')
+if [[ "$devices" == "0" ]]; then
+  echo "ears-adb: no device. Plug in a phone with USB debugging on, or start an emulator (API 30+)." >&2
+  exit 4
+fi
+sdk=$(adb shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r' || echo 0)
+if [[ "$sdk" =~ ^[0-9]+$ ]] && ((sdk < 30)); then
+  echo "ears-adb: Android API $sdk. Audio capture needs Android 11 (API 30) or newer." >&2
+  exit 5
+fi
+
+common=(--no-video --no-window --time-limit="$secs")
+# 1) raw PCM straight into WAV (scrcpy 2.x with WAV recording).
+if scrcpy "${common[@]}" --audio-codec=raw --record="$out" "$@" 2>/tmp/ears-adb.log; then
+  echo "ears-adb: wrote $out"
+  exit 0
+fi
+# 2) Older scrcpy (no --no-window / no WAV): record Opus, then decode with ffmpeg.
+need ffmpeg "Needed to turn the Opus recording into WAV."
+tmp=$(mktemp -t ears-adb).mka
+if scrcpy --no-video --no-playback --time-limit="$secs" --audio-codec=opus --record="$tmp" "$@" 2>>/tmp/ears-adb.log \
+  || scrcpy --no-video --no-display --time-limit="$secs" --audio-codec=opus --record="$tmp" "$@" 2>>/tmp/ears-adb.log; then
+  ffmpeg -v error -y -i "$tmp" "$out"
+  rm -f "$tmp"
+  echo "ears-adb: wrote $out (via Opus; lossy)"
+  exit 0
+fi
+echo "ears-adb: scrcpy could not record audio. Its log: /tmp/ears-adb.log" >&2
+exit 6

@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Ears example: a short glassy tick</title>
+<!--
+  A tiny synth for testing Ears: a 2.35 kHz sine plus a faint 3.5 kHz triangle,
+  peak 0.022, about 0.1 s. It uses a plain `new AudioContext()`, as a real app does.
+  Render it:  ears-page examples/tick.html --expr "playTick()" --seconds 0.3 --out tick.wav
+  Or open it in a browser that loaded ears-render.js and call Ears.render(tick).
+-->
+<script>
+  function tone(ac, out, t, f, peak, a, decay, type = "sine") {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f, t);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + a + decay);
+    o.connect(g);
+    g.connect(out);
+    o.start(t);
+    o.stop(t + a + decay + 0.05);
+  }
+  // The synth on its own: works with any context (live or offline).
+  function tick(ac) {
+    const t = ac.currentTime;
+    tone(ac, ac.destination, t, 2349, 0.022, 0.002, 0.09);
+    tone(ac, ac.destination, t, 3524, 0.008, 0.001, 0.05, "triangle");
+  }
+  function playTick() {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    tick(new AC());
+  }
+</script>
+<button onclick="playTick()">tick</button>
