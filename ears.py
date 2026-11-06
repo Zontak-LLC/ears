@@ -298,6 +298,11 @@ def transients(S: np.ndarray, t: np.ndarray, sr: int, hop: int) -> list[float]:
     # Keep only audible ones: the frame after the onset must be within 40 dB of the loudest frame.
     e = (S ** 2).sum(axis=0)
     peaks = [i for i in peaks if e[min(i + 1, len(e) - 1)] > e.max() * 1e-4]
+    # Keep only real rises in level: about 20 ms after the peak must be louder than 20 ms before (by 1.2x, about 0.8 dB:
+    # enough to drop a fade, small enough to keep track clacks over a loud engine; checked on the refs/ sounds).
+    # Without this, the bend where a smooth fade begins smears a little flux across bins and reads as a click.
+    k = max(1, int(0.02 * sr / hop))
+    peaks = [i for i in peaks if e[min(i + k, len(e) - 1)] > 1.2 * e[max(i - k, 0)] + EPS]
     return [float(max(0.0, t[i])) for i in peaks]
 
 
