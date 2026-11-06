@@ -96,6 +96,15 @@ No `venv`/`pip` and no sudo (for example Ubuntu without `python3-venv`)? Run `./
 
 The skill (`skill/SKILL.md`) tells an agent to run Ears after making or changing any sound, to Read the `ears.png`, to compare with a reference when one exists, and never to claim a sound is good without running Ears.
 
+## Tests
+
+Scenario tests with synthetic sounds (a fade-out is not a click, real clicks are found):
+
+```sh
+.venv/bin/python -m pip install pytest
+.venv/bin/python -m pytest -q tests
+```
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
